@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-width=3.0, user-scalable=yes, viewport-fit=cover">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    
+    <script>
+        (function() {
+            const manifest = {
+                "short_name": "メニュー表",
+                "name": "メニュー表 横スライド版",
+                "display": "standalone",
+                "start_url": window.location.href,
+                "background_color": "#ffffff",
+                "theme_color": "#ffffff",
+                "orientation": "any"
+            };
+            const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+            const manifestURL = URL.createObjectURL(blob);
+            const link = document.createElement('link');
+            link.rel = 'manifest';
+            link.href = manifestURL;
+            document.head.appendChild(link);
+        })();
+    </script>
+    
+    <title>メニュー表 横スライド版</title>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    <style>
+        html, body { margin: 0; padding: 0; height: 100vh; height: 100dvh; background: #fff; overflow-x: hidden; overflow-y: hidden; font-family: sans-serif; overscroll-behavior-y: none; }
+        
+        body, .page-image {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        
+        .swiper { width: 100%; height: calc(100vh - 140px); height: calc(100dvh - 140px); transition: height 0.2s ease; }
+        
+        .swiper-slide { 
+            overflow: hidden !important; 
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+        }
+        
+        .zoom-wrapper {
+            width: 100%;
+            height: auto;
+            position: relative;
+            overflow: hidden; 
+            flex-shrink: 0;
+            box-sizing: border-box;
+            padding: 0 15px;
+            transition: all 0.3s ease;
+        }
+
+        .inline-maximize-btn {
+            position: absolute;
+            top: 10px;
+            left: 25px;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            padding: 6px 10px;
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        .inline-maximize-btn:active { background: rgba(0, 0, 0, 0.9); }
+
+        .fullscreen-image-overlay {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+            z-index: 9000;
+            background: #ffffff;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        .fullscreen-image-overlay img {
+            width: 100% !important;
+            height: auto !important;
+            display: block !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        .page-container { 
+            width: 100%; 
+            display: flex; flex-direction: column; align-items: center; 
+            background: #fff; 
+            padding-bottom: 40px; 
+            overflow-y: auto; 
+            height: 100%;
+            -webkit-overflow-scrolling: touch; 
+            box-sizing: border-box;
+        }
+        
+        .swiper-zoom-container { width: 100%; height: 100%; }
+        .page-image { width: 100%; height: auto; display: block; border: none; }
+
+        .selection-area { 
+            width: 90%; 
+            display: flex; flex-direction: column; 
+            padding: 10px; background: #f9f9f9; border-radius: 8px; margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+            box-sizing: border-box;
+            flex-shrink: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .settings-wrap { flex-shrink: 0; display: flex; flex-direction: column; width: 100%; }
+
+        .toggle-btn-container { display: flex; justify-content: flex-end; gap: 6px; margin-bottom: 8px; flex-shrink: 0; flex-wrap: wrap; }
+        .toggle-file-btn {
+            font-size: 11px; padding: 5px 10px; background: #e0e0e0; 
+            border: 1px solid #aaa; border-radius: 4px; cursor: pointer; color: #333;
+            font-weight: bold;
+        }
+        .toggle-file-btn:active { background: #ccc; }
+
+        .file-upload-group { margin-bottom: 10px; padding: 10px; background: #fff; border: 1px solid #ccc; border-radius: 4px; flex-shrink: 0; }
+        .file-upload-item { display: flex; flex-direction: column; font-size: 13px; font-weight: bold; margin-bottom: 8px; }
+        
+        .file-input-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+        .file-input-row input[type="file"] { flex: 1; }
+        .reset-data-btn {
+            font-size: 11px; padding: 4px 8px; background: #ffebee; 
+            border: 1px solid #ffcdd2; border-radius: 4px; cursor: pointer; color: #c62828;
+            font-weight: bold; white-space: nowrap;
+        }
+        .reset-data-btn:active { background: #ffcdd2; }
+
+        .selection-row { display: flex; gap: 10px; margin-bottom: 5px; width: 100%; flex-shrink: 0; }
+        .select-box { 
+            flex: 1; 
+            min-width: 0; 
+            padding: 10px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            box-sizing: border-box;
+            text-overflow: ellipsis;  white-space: nowrap; 
+            overflow: hidden; 
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .blink-attention { animation: blink-red 1.2s ease-in-out; animation-iteration-count: 3; }
+        @keyframes blink-red {
+            0%, 100% { border-color: #ccc; box-shadow: none; }
+            50% { border-color: #ff0000; box-shadow: 0 0 8px rgba(255, 0, 0, 0.6); }
+        }
+
+        .result-box { border: 1px solid #ccc; background: #fff; padding: 10px; border-radius: 4px; font-size: 14px; margin-bottom: 10px; flex-shrink: 0; }
+        .scrollable-menu-area { width: 100%; padding-right: 5px; }
+        .tap-menu-area { width: 100%; margin-top: 10px; }
+        .tap-menu-title { font-size: 14px; font-weight: bold; margin-bottom: 5px; border-bottom: 2px solid #ccc; }
+        
+        .tap-btn { 
+            display: flex; justify-content: space-between; align-items: center;
+            width: 100%; padding: 8px 10px; margin-bottom: 6px; 
+            background: #e0f7fa; border: 1px solid #00bcd4; border-radius: 6px; 
+            text-align: left; font-size: 13px; font-weight: bold; color: #006064;
+            cursor: pointer; box-sizing: border-box;
+        }
+        .tap-btn:active { background: #b2ebf2; }
+        .tap-btn-left { display: flex; flex-direction: row; align-items: baseline; gap: 8px; flex: 1; flex-wrap: wrap; }
+        .tap-btn-spec { font-size: 11px; font-weight: normal; color: #00838f; margin-top: 0; }
+
+        .tap-btn-side { background: #fff3e0; border: 1px solid #ffb74d; color: #e65100; }
+        .tap-btn-side:active { background: #ffe0b2; }
+        .tap-btn-side .tap-btn-spec { color: #d84315; }
+
+        .bottom-cart-area {
+            position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; border-top: 3px solid #333; z-index: 1000;
+            box-sizing: border-box; padding: 4px 0 env(safe-area-inset-bottom) 0; margin: 0;
+            transition: bottom 0.2s ease, opacity 0.2s ease;
+        }
+        .bottom-cart-area.fullscreen-adjusted { padding-bottom: 25px !important; }
+        
+        .cart-table-wrapper { width: 100%; max-height: 45vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .cart-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 0; }
+        .cart-table th, .cart-table td { border: 1px solid #999; padding: 7px 6px; font-size: 13px; vertical-align: middle; box-sizing: border-box; word-break: break-all; }
+        
+        .cart-col-name { width: 42%; text-align: left; }
+        .cart-col-discount { width: 18%; text-align: center; }
+        .cart-col-price { width: 40%; text-align: right; }
+        
+        .double-strike { text-decoration: line-through; -webkit-text-decoration-line: line-through; text-decoration-style: double; -webkit-text-decoration-style: double; color: #777; font-size: 11px; font-weight: normal; }
+        .car-info-row td { background: #f0f0f0; font-weight: bold; color: #333; position: relative; }
+        .total-row td { background: #ffe0b2; font-weight: bold; }
+        .total-row td:nth-child(1) { font-size: 11px; color: #e65100; text-align: left; font-weight: bold; }
+        .cart-row-item td { background: #fafafa; color: #333; }
+        .cart-row-item:active td { background: #ffebee !important; }
+
+        [x-cloak] { display: none !important; }
+
+        .dialog-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; justify-content: center; align-items: center; }
+        .dialog-box { background: #fff; padding: 25px 20px; border-radius: 12px; width: 85%; max-width: 320px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .dialog-title { font-size: 16px; font-weight: bold; margin-bottom: 20px; color: #333; }
+        .dialog-btn-group { display: flex; flex-direction: column; gap: 10px; }
+        .dialog-btn { padding: 12px; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: bold; }
+        .btn-yes { background: #00bcd4; color: #fff; }
+        .btn-yes:active { background: #00acc1; }
+        .btn-no { background: #f5f5f5; color: #555; border: 1px solid #ccc; }
+        .btn-no:active { background: #e0e0e0; }
+
+        .pwd-input { width: 100%; padding: 10px; font-size: 18px; text-align: center; letter-spacing: 4px; border: 2px solid #ccc; border-radius: 6px; margin-bottom: 15px; box-sizing: border-box; }
+
+        .admin-page-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; z-index: 5000; overflow-y: auto; padding: 20px; box-sizing: border-box; }
+        .admin-card { background: #f5f7fa; border: 1px solid #cfd8dc; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .admin-title { font-size: 18px; font-weight: bold; color: #37474f; margin-bottom: 15px; border-bottom: 2px solid #37474f; padding-bottom: 5px; }
+        .admin-label { font-size: 14px; font-weight: bold; color: #455a64; margin-bottom: 8px; display: block; }
+        
+        .toggle-switch-group { display: flex; border: 1px solid #b0bec5; border-radius: 6px; overflow: hidden; margin-bottom: 15px; }
+        .toggle-switch-btn { flex: 1; padding: 10px; font-size: 13px; font-weight: bold; background: #fff; color: #546e7a; border: none; cursor: pointer; text-align: center; }
+        .toggle-switch-btn.active { background: #37474f; color: #fff; }
+        
+        .admin-input-row { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+        .admin-input { padding: 10px; font-size: 16px; border: 1px solid #cfd8dc; border-radius: 4px; width: 120px; text-align: right; }
+        
+        .discount-list-container { max-height: 50vh; overflow-y: auto; border: 1px solid #cfd8dc; border-radius: 6px; background: #fff; margin-bottom: 10px; }
+        .discount-item-name { font-size: 14px; color: #37474f; font-weight: bold; flex: 1; margin-right: 10px; }
+        
+        .switch { position: relative; display: inline-block; width: 48px; height: 26px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cfd8dc; transition: .3s; border-radius: 26px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        input:checked + .slider { background-color: #00bcd4; }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        .admin-save-btn { width: 100%; padding: 14px; background: #2e7d32; color: #fff; font-size: 16px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-bottom: 20px; }
+        .admin-save-btn:active { background: #1b5e20; }
+
+        .toast-guidance { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.85); color: #fff; padding: 12px 20px; border-radius: 50px; font-size: 13px; font-weight: bold; text-align: center; line-height: 1.4; z-index: 10000; box-shadow: 0 4px 15px rgba(0,0,0,0.3); pointer-events: none; width: 85%; max-width: 320px; }
+
+        .floating-action-container { position: fixed; top: 15px; left: 15px; z-index: 10010; display: flex; flex-direction: column; gap: 8px; }
+        .floating-action-btn { color: #fff; padding: 8px 14px; font-size: 13px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.4); white-space: nowrap; }
+        .btn-fullscreen-cancel { background: rgba(211, 47, 47, 0.95) !important; border: 1px solid #ffcdd2 !important; }
+
+        .inline-price-wrap { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+        .cart-item-flex-wrap { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* 初回起動時限定のパスワードロック画面用のスタイル */
+        .first-lock-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #1a1a1a; z-index: 99999; display: flex;
+            flex-direction: column; justify-content: center; align-items: center;
+            color: #fff; font-family: sans-serif;
+        }
+        .first-lock-box {
+            text-align: center; background: #2a2a2a; padding: 35px 25px;
+            border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+            width: 85%; max-width: 300px;
+        }
+
+        @media (orientation: landscape) {
+            .swiper { height: 100vh !important; height: 100dvh !important; width: 100%; }
+            .page-container { flex-direction: row; align-items: stretch; padding-bottom: 0; overflow: hidden; }
+            .zoom-wrapper { width: 50% !important; height: calc(100vh - var(--cart-h, 75px)) !important; height: calc(100dvh - var(--cart-h, 75px)) !important; display: flex; align-items: center; justify-content: center; background: #fff; padding: 0 15px !important; }
+            .swiper-zoom-container { height: 100%; display: flex; align-items: center; justify-content: center; }
+            .page-image { width: 100% !important; height: 100% !important; object-fit: contain !important; }
+            .selection-area { width: 50% !important; height: calc(100vh - var(--cart-h, 75px)) !important; height: calc(100dvh - var(--cart-h, 75px)) !important; margin: 0 !important; border-radius: 0; overflow-y: auto; padding: 15px; box-shadow: none; border-left: 1px solid #ccc; }
+            .bottom-cart-area { left: 0 !important; bottom: 0 !important; position: fixed !important; margin: 0 !important; padding: 4px 0 env(safe-area-inset-bottom) 0 !important; width: 100% !important; height: auto !important; background: #fff; border-top: 3px solid #333; }
+            .bottom-cart-area.fullscreen-adjusted { padding-bottom: 14px !important; }
+            .cart-table-wrapper { max-height: 160px !important; height: auto !important; overflow-y: auto; padding-bottom: 14px !important; box-sizing: border-box; }
+            .cart-table tbody { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+            .car-info-row { grid-column: 1 / 3; display: table; width: 100%; table-layout: fixed; } 
+            .cart-table td { padding: 5px 6px !important; font-size: 11px !important; }
+            .cart-row-item { display: table; width: 100%; table-layout: fixed; box-sizing: border-box; }
+            .total-row { grid-column: 1 / 3; display: table; width: 100%; table-layout: fixed; } 
+            .admin-page-overlay { padding: 20px 10%; }
+            .toast-guidance { bottom: calc(var(--cart-h, 75px) + 20px); } 
+        }
+    </style>
+</head>
+<body x-data="carSelector">
+
+<div class="first-lock-overlay" x-show="!isAppUnlocked" x-cloak>
+    <div class="first-lock-box">
+        <h2 style="margin: 0 0 20px 0; font-size: 18px; letter-spacing: 1px;">アプリ起動認証</h2>
+        <input type="password" class="pwd-input" pattern="\d*" inputmode="numeric" placeholder="••••" x-model="firstInputPassword" @keydown.enter="verifyFirstPassword" style="margin-bottom: 20px; background: #fff; color: #000;">
+        <div class="dialog-btn-group">
+            <button class="dialog-btn btn-yes" @click="verifyFirstPassword" style="padding: 14px;">認証してログイン</button>
+        </div>
+    </div>
+</div>
+
+<div class="floating-action-container">
+    <button class="floating-action-btn btn-fullscreen-cancel" x-show="imageFullscreenMode" @click="disableImageFullscreen()" x-cloak>❌ 戻る</button>
+</div>
+
+<div id="fullscreenOverlay" class="fullscreen-image-overlay" x-show="imageFullscreenMode" x-cloak>
+    <img :src="fullscreenImageUrl" alt="Fullscreen Image">
+</div>
+
+<div class="toast-guidance" x-show="showGuidance" x-cloak>
+    各種設定ボタンより価格設定が出来ます🙆
+</div>
+
+<div class="dialog-overlay" x-show="showFullscreenConfirm" x-cloak>
+    <div class="dialog-box">
+        <div class="dialog-title">全画面で表示しますか？</div>
+        <div class="dialog-btn-group">
+            <button class="dialog-btn btn-yes" @click="requestFullscreenFromDialog">はい</button>
+            <button class="dialog-btn btn-no" @click="declineFullscreenFromDialog">いいえ</button>
+        </div>
+    </div>
+</div>
+
+<div class="dialog-overlay" x-show="showPasswordDialog" x-cloak @click="showPasswordDialog = false">
+    <div class="dialog-box" @click.stop>
+        <div class="dialog-title">管理者パスワード</div>
+        <input type="password" class="pwd-input" pattern="\d*" inputmode="numeric" placeholder="••••" x-model="inputPassword" @keydown.enter="verifyPassword">
+        <div class="dialog-btn-group">
+            <button class="dialog-btn btn-yes" @click="verifyPassword">認証</button>
+            <button class="dialog-btn btn-no" @click="showPasswordDialog = false">キャンセル</button>
+        </div>
+    </div>
+</div>
+
+<div class="admin-page-overlay" x-show="showAdminPage" x-cloak>
+    <div class="admin-title">11. 価格設定・値引管理システム</div>
+    
+    <div class="admin-card">
+        <label class="admin-label">① 値引方式の選択 (一括設定)</label>
+        <div class="toggle-switch-group">
+            <button type="button" class="toggle-switch-btn" :class="discountType === 'percent' ? 'active' : ''" @click="discountType = 'percent'">%値引き (百分率)</button>
+            <button type="button" class="toggle-switch-btn" :class="discountType === 'fixed' ? 'active' : ''" @click="discountType = 'fixed'">円値引き (固定額)</button>
+        </div>
+        <label class="admin-label">② 値引き額／値引き率の入力 (一括設定)</label>
+        <div class="admin-input-row">
+            <input type="number" class="admin-input" x-model.number="discountValue" min="0" :max="discountType === 'percent' ? 100 : 999999">
+            <span style="font-weight: bold;" x-text="discountType === 'percent' ? '%' : '円'"></span>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <label class="admin-label">③ 値引き適用対象グループ (一括設定)</label>
+        <div class="toggle-switch-group">
+            <button type="button" class="toggle-switch-btn" :class="discountTarget === 'menu' ? 'active' : ''" @click="discountTarget = 'menu'">洗車・コーティングのみ</button>
+            <button type="button" class="toggle-switch-btn" :class="discountTarget === 'option' ? 'active' : ''" @click="discountTarget = 'option'">サイドメニューのみ</button>
+            <button type="button" class="toggle-switch-btn" :class="discountTarget === 'both' ? 'active' : ''" @click="discountTarget = 'both'">どちらも適用</button>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <label class="admin-label">④ 個別メニューの値引設定</label>
+        <div style="font-size: 11px; color: #666; margin-bottom: 8px;">※スイッチがOFFの項目は値引き対象外になります。</div>
+        <div class="discount-list-container">
+            <template x-for="item in allUniqueItems" :key="item.name">
+                <div style="border-bottom: 1px solid #eceff1; padding: 12px 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="discount-item-name" x-text="item.name"></span>
+                        <label class="switch">
+                            <input type="checkbox" x-model="itemSettings[item.name].enabled">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                    <div x-show="itemSettings[item.name].enabled">
+                        <div style="margin-top: 10px; padding: 10px; background: #f0f4f8; border-radius: 6px;">
+                            <label style="display: flex; align-items: center; font-size: 13px; font-weight: bold; color: #455a64; margin-bottom: 8px;">
+                                <input type="checkbox" x-model="itemSettings[item.name].custom" style="margin-right: 8px;"> 個別に値引設定する
+                            </label>
+                            <div x-show="itemSettings[item.name].custom">
+                                <div class="toggle-switch-group" style="margin-bottom: 8px;">
+                                    <button type="button" class="toggle-switch-btn" :class="itemSettings[item.name].type === 'percent' ? 'active' : ''" @click="itemSettings[item.name].type = 'percent'">%値引き</button>
+                                    <button type="button" class="toggle-switch-btn" :class="itemSettings[item.name].type === 'fixed' ? 'active' : ''" @click="itemSettings[item.name].type = 'fixed'">円値引き</button>
+                                </div>
+                                <div class="admin-input-row" style="margin-bottom: 0;">
+                                    <input type="number" class="admin-input" x-model.number="itemSettings[item.name].value" min="0" style="width: 100px; padding: 8px;">
+                                    <span style="font-weight: bold; font-size: 14px; color: #37474f;" x-text="itemSettings[item.name].type === 'percent' ? '%' : '円'"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+    <button type="button" class="admin-save-btn" @click="saveAndReturn">設定を確定してメニューに戻る</button>
+</div>
+
+<div class="swiper" :style="imageFullscreenMode ? 'height: 100vh !important; height: 100dvh !important;' : (window.matchMedia('(orientation: landscape)').matches ? '' : 'height: calc(100vh - ' + cartHeight + 'px); height: calc(100dvh - ' + cartHeight + 'px);')">
+    <div class="swiper-wrapper">
+        <template x-for="i in 10" :key="i">
+            <div class="swiper-slide">
+                <div class="page-container" :style="i === 1 ? 'padding-top: 0;' : ''">
+                    <div class="zoom-wrapper" :style="i === 1 ? 'padding-top: 0; margin-top: 0; margin-bottom: 15px;' : ''">
+                        <button class="inline-maximize-btn" x-show="i !== 1" @click="enableImageFullscreen(i + '.jpg')" x-cloak>🔍 画像最大化</button>
+                        <div class="swiper-zoom-container">
+                            <img :src="i + '.jpg'" class="page-image" :alt="'Page ' + i" @load="i === 2 && adjustImagesHeight()">
+                        </div>
+                    </div>
+                    
+                    <div class="selection-area" x-show="i === 1 || selectedSize" x-cloak>
+                        <template x-if="i === 1">
+                            <div class="settings-wrap">
+                                <div class="toggle-btn-container">
+                                    <button class="toggle-file-btn" style="background: #e1f5fe; border: 1px solid #b3e5fc; color: #0288d1;" @click="openPasswordScreen()">⚙ 各種設定</button>
+                                    <button class="toggle-file-btn" style="background: #ede7f6; border: 1px solid #d1c4e9; color: #5e35b1;" @click="toggleFullscreen()" x-text="isFullscreen ? '⛶ 解除' : '⛶ 全画面表示'"></button>
+                                    <button class="toggle-file-btn" @click="showFileWindow = !showFileWindow" x-text="showFileWindow ? '▲ 隠す' : '▼ ファイル読込'"></button>
+                                </div>
+
+                                <div class="file-upload-group" x-show="showFileWindow">
+                                    <div class="file-upload-item">車種データ<div class="file-input-row"><input type="file" @change="handleCarFile" id="carFileInput"><button type="button" class="reset-data-btn" @click="resetData('carData', 'carFileInput')">リセット</button></div></div>
+                                    <div class="file-upload-item">洗車・コーティングデータ<div class="file-input-row"><input type="file" @change="handleMenuFile" id="menuFileInput"><button type="button" class="reset-data-btn" @click="resetData('menuData', 'menuFileInput')">リセット</button></div></div>
+                                    <div class="file-upload-item">サイドメニューデータ<div class="file-input-row"><input type="file" @change="handleOptionFile" id="optionFileInput"><button type="button" class="reset-data-btn" @click="resetData('optionData', 'optionFileInput')">リセット</button></div></div>
+                                </div>
+                                
+                                <div class="selection-row">
+                                    <select class="select-box" :class="{ 'blink-attention': blinkMaker }" x-model="maker" @change="handleMakerChange"><option value="">メーカー</option><template x-for="m in makers" :key="m"><option :value="m" x-text="m"></option></template></select>
+                                    <select class="select-box" :class="{ 'blink-attention': blinkModel }" x-model="model" :disabled="!maker"><option value="">車種</option><template x-for="mod in models" :key="mod"><option :value="mod" x-text="mod"></option></template></select>
+                                </div>
+                                <div class="result-box">サイズ: <strong x-text="selectedSize" style="color: #ff4500;"></strong></div>
+                            </div>
+                        </template>
+
+                        <template x-if="selectedSize">
+                            <div class="scrollable-menu-area">
+                                <div class="tap-menu-area" x-show="filteredMenu.length > 0">
+                                    <div class="tap-menu-title">タップして追加（洗車・コーティング）</div>
+                                    <template x-for="item in filteredMenu">
+                                        <button class="tap-btn" @click="addToCart(item.name, item.price, item.spec, 'menu')">
+                                            <div class="tap-btn-left"><span x-text="item.name"></span><span class="tap-btn-spec" x-show="item.spec" x-text="item.spec"></span></div>
+                                            <div class="inline-price-wrap">
+                                                <template x-if="getDiscountInfo(item.name, item.price, 'menu').text">
+                                                    <span class="inline-price-wrap">
+                                                        <span style="color: #d32f2f; font-size: 11px; font-weight: bold;" x-text="'[' + getDiscountInfo(item.name, item.price, 'menu').text + ']'"></span>
+                                                        <span style="font-size: 11px; color: #777; text-decoration: line-through;" x-text="Number(getDiscountInfo(item.name, item.price, 'menu').originalPrice).toLocaleString() + '円'"></span>
+                                                        <span style="color: #333; font-size: 11px;">→</span>
+                                                        <span style="color: #d32f2f; font-weight: bold; font-size: 13px;" x-text="Number(getDiscountInfo(item.name, item.price, 'menu').price).toLocaleString() + '円'"></span>
+                                                    </span>
+                                                </template>
+                                                <template x-if="!getDiscountInfo(item.name, item.price, 'menu').text">
+                                                    <span style="font-size: 13px;" x-text="Number(getDiscountInfo(item.name, item.price, 'menu').price).toLocaleString() + '円'"></span>
+                                                </template>
+                                            </div>
+                                        </button>
+                                    </template>
+                                </div>
+
+                                <div class="tap-menu-area" x-show="filteredOption.length > 0">
+                                    <div class="tap-menu-title">タップして追加（サイドメニュー）</div>
+                                    <template x-for="item in filteredOption">
+                                        <button class="tap-btn tap-btn-side" @click="addToCart(item.name, item.price, item.spec, 'option')">
+                                            <div class="tap-btn-left"><span x-text="item.name"></span><span class="tap-btn-spec" x-show="item.spec" x-text="item.spec"></span></div>
+                                            <div class="inline-price-wrap">
+                                                <template x-if="getDiscountInfo(item.name, item.price, 'option').text">
+                                                    <span class="inline-price-wrap">
+                                                        <span style="color: #d32f2f; font-size: 11px; font-weight: bold;" x-text="'[' + getDiscountInfo(item.name, item.price, 'option').text + ']'"></span>
+                                                        <span style="font-size: 11px; color: #777; text-decoration: line-through;" x-text="Number(getDiscountInfo(item.name, item.price, 'option').originalPrice).toLocaleString() + '円'"></span>
+                                                        <span style="color: #333; font-size: 11px;">→</span>
+                                                        <span style="color: #d32f2f; font-weight: bold; font-size: 13px;" x-text="Number(getDiscountInfo(item.name, item.price, 'option').price).toLocaleString() + '円'"></span>
+                                                    </span>
+                                                </template>
+                                                <template x-if="!getDiscountInfo(item.name, item.price, 'option').text">
+                                                    <span style="font-size: 13px;" x-text="Number(getDiscountInfo(item.name, item.price, 'option').price).toLocaleString() + '円'"></span>
+                                                </template>
+                                            </div>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div> 
+                </div> 
+            </div> 
+        </template> 
+    </div> 
+</div>
+
+<div id="cartContainer" class="bottom-cart-area" :class="isFullscreen ? 'fullscreen-adjusted' : ''" x-show="!imageFullscreenMode && isAppUnlocked" x-cloak>
+    <div class="cart-table-wrapper">
+        <table class="cart-table">
+            <tbody>
+                <tr class="car-info-row">
+                    <td colspan="2" style="text-align: left;"><span x-text="maker && model ? maker + ' ' + model : '車種未選択'"></span><span style="margin-left: 12px; color: #333;">サイズ: </span><span x-text="selectedSize ? selectedSize : '---'" style="color: #ff4500; font-weight: bold;"></span></td>
+                    <td style="text-align: right;"></td>
+                </tr>
+                <template x-for="(row, idx) in nonWrappedCartRows" :key="idx">
+                    <tr class="cart-row-item" @click="removeFromCart(row.originalIndex)">
+                        <template x-if="row.discountText">
+                            <td class="cart-col-name"><div class="cart-item-flex-wrap"><span x-text="row.name" style="font-weight: bold;"></span><span class="tap-btn-spec" x-show="row.spec" x-text="row.spec"></span></div></td>
+                        </template>
+                        <template x-if="row.discountText">
+                            <td class="cart-col-discount"><span style="color: #d32f2f; font-size: 11px; font-weight: bold;" x-text="'[' + row.discountText + ']'"></span></td>
+                        </template>
+                        <template x-if="row.discountText">
+                            <td class="cart-col-price"><div class="inline-price-wrap" style="width: 100%; justify-content: flex-end; gap: 5px;"><span class="double-strike" x-text="Number(row.originalPrice).toLocaleString() + '円'"></span><span style="font-size: 11px; color: #555;">→</span><span style="color: #d32f2f; font-weight: bold; font-size: 13px;" x-text="Number(row.calcPrice).toLocaleString() + '円'"></span></div></td>
+                        </template>
+                        <template x-if="!row.discountText">
+                            <td class="cart-col-name" colspan="2" style="width: 60%;"><div class="cart-item-flex-wrap"><span x-text="row.name" style="font-weight: bold;"></span><span class="tap-btn-spec" x-show="row.spec" x-text="row.spec"></span></div></td>
+                        </template>
+                        <template x-if="!row.discountText">
+                            <td class="cart-col-price" style="width: 40%; color: #333; font-weight: bold;"><span x-text="Number(row.calcPrice).toLocaleString() + '円'"></span></td>
+                        </template>
+                    </tr>
+                </template>
+                <tr class="total-row">
+                    <td colspan="2" style="text-align: left;">※項目タップで取り消し</td>
+                    <td style="text-align: right; color: #d32f2f; font-size: 14px;"><span style="color: #333; font-size: 11px; font-weight: normal;">合計:</span><span x-text="totalPrice.toLocaleString() + '円'"></span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('carSelector', () => ({
+            // 👑 初回起動パスワード用の状態管理群
+            isAppUnlocked: false,
+            firstInputPassword: '',
+
+            showFileWindow: true,
+            showPasswordDialog: false,
+            inputPassword: '',
+            showAdminPage: false,
+            showFullscreenConfirm: false,
+            
+            discountType: 'percent', 
+            discountValue: 0,
+            discountTarget: 'both',
+            itemSettings: {}, 
+            showGuidance: false, 
+            isFullscreen: false,
+            imageFullscreenMode: false,
+            fullscreenImageUrl: '',
+
+            blinkMaker: false,
+            blinkModel: false,
+
+            maker: '', model: '', 
+            carData: [], menuData: [], optionData: [],
+            cart: [],
+            swiperInstance: null,
+            cartHeight: 110, 
+
+            get makers() { return [...new Set(this.carData.map(d => d['メーカー']))].filter(Boolean); },
+            get models() { return this.carData.filter(d => d['メーカー'] === this.maker).map(d => d['車種']); },
+            get selectedSize() { const f = this.carData.find(d => d['メーカー'] === this.maker && d['車種'] === this.model); return f ? f['サイズ'] : ''; },
+            
+            get filteredMenu() {
+                if (!this.selectedSize || this.menuData.length === 0) return [];
+                return this.menuData.filter(item => String(item.size) === String(this.selectedSize));
+            },
+            get filteredOption() {
+                if (!this.selectedSize || this.optionData.length === 0) return [];
+                return this.optionData.filter(item => !item.size || String(item.size) === String(this.selectedSize));
+            },
+            get allUniqueItems() {
+                const map = new Map();
+                this.menuData.forEach(d => { if(d.name) map.set(d.name, { name: d.name }); });
+                this.optionData.forEach(d => { if(d.name) map.set(d.name, { name: d.name }); });
+                return Array.from(map.values());
+            },
+            get nonWrappedCartRows() { return this.cart.map((item, index) => ({ ...item, originalIndex: index })); },
+
+            // 👑 初回起動パスワードの検証処理
+            verifyFirstPassword() {
+                if (this.firstInputPassword === '8541') {
+                    localStorage.setItem('menu_app_global_unlocked', 'true');
+                    this.isAppUnlocked = true;
+                    this.initializeMainFeatures(); // 認証成功後に通常のポップアップ類を呼び出す
+                } else {
+                    alert('パスワードが違います。');
+                    this.firstInputPassword = '';
+                }
+            },
+
+            enableImageFullscreen(imgSrc) {
+                this.fullscreenImageUrl = imgSrc;
+                this.imageFullscreenMode = true;
+                this.$nextTick(() => {
+                    const overlay = document.getElementById('fullscreenOverlay');
+                    if (overlay) overlay.scrollTop = 0;
+                });
+            },
+            disableImageFullscreen() {
+                this.imageFullscreenMode = false;
+                this.fullscreenImageUrl = '';
+                this.updateCartHeight();
+            },
+            syncItemSettings() {
+                this.allUniqueItems.forEach(item => {
+                    if (!this.itemSettings[item.name]) {
+                        this.itemSettings[item.name] = { enabled: true, custom: false, type: 'percent', value: 0 };
+                    }
+                });
+            },
+            getDiscountInfo(name, originalPrice, type) {
+                const basePrice = Number(String(originalPrice).replace(/[^0-9]/g, '')) || 0;
+                const setting = this.itemSettings[name];
+                if (setting && !setting.enabled) return { price: basePrice, text: '', originalPrice: basePrice };
+
+                let isApplicable = false;
+                if (setting && setting.custom) { isApplicable = true; } 
+                else if (this.discountTarget === 'both' || this.discountTarget === type) { isApplicable = true; }
+
+                if (!isApplicable) return { price: basePrice, text: '', originalPrice: basePrice };
+
+                let dType = this.discountType;
+                let dValue = this.discountValue;
+                if (setting && setting.custom) { dType = setting.type; dValue = setting.value; }
+                if (!dValue || dValue <= 0) return { price: basePrice, text: '', originalPrice: basePrice };
+
+                let finalPrice = basePrice;
+                let text = '';
+                if (dType === 'percent') {
+                    const rate = Math.min(Math.max(dValue, 0), 100);
+                    finalPrice = basePrice * (1 - rate / 100);
+                    finalPrice = Math.round(finalPrice / 10) * 10; 
+                    text = dValue + '％引';
+                } else {
+                    finalPrice = Math.max(0, basePrice - dValue);
+                    text = dValue + '円引';
+                }
+                return { price: finalPrice, text: text, originalPrice: basePrice };
+            },
+            get totalPrice() { return this.cart.reduce((sum, item) => sum + (Number(item.calcPrice) || 0), 0); },
+
+            updateCartHeight() {
+                if (this.imageFullscreenMode || !this.isAppUnlocked) return;
+                this.$nextTick(() => {
+                    const container = document.getElementById('cartContainer');
+                    if (container) {
+                        const actualH = container.clientHeight || 75;
+                        this.cartHeight = actualH;
+                        const totalOffset = window.matchMedia("(orientation: landscape)").matches ? (actualH + 14) : actualH;
+                        document.documentElement.style.setProperty('--cart-h', totalOffset + 'px');
+                    }
+                    if (this.swiperInstance) this.swiperInstance.update();
+                    this.adjustImagesHeight();
+                });
+            },
+            toggleFullscreen() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen()
+                        .then(() => { this.isFullscreen = true; })
+                        .catch(err => { alert(`全画面表示を起動できませんでした: ${err.message}`); });
+                } else {
+                    document.exitFullscreen();
+                    this.isFullscreen = false;
+                }
+            },
+            requestFullscreenFromDialog() {
+                this.showFullscreenConfirm = false;
+                document.documentElement.requestFullscreen()
+                    .then(() => { this.isFullscreen = true; })
+                    .catch(err => { console.log(`全画面リクエスト拒否: ${err.message}`); })
+                    .finally(() => { this.startMakerBlinking(); });
+            },
+            declineFullscreenFromDialog() { this.showFullscreenConfirm = false; this.startMakerBlinking(); },
+            startMakerBlinking() { this.blinkMaker = true; setTimeout(() => { this.blinkMaker = false; }, 3600); },
+            handleMakerChange() {
+                this.model = ''; this.blinkMaker = false;
+                if (this.maker) {
+                    this.$nextTick(() => { this.blinkModel = true; setTimeout(() => { this.blinkModel = false; }, 3600); });
+                }
+            },
+            addToCart(name, price, spec = '', type = 'menu') {
+                if (!price) { alert('価格が設定されていません。'); return; }
+                if (this.cart.length < 6) {
+                    const info = this.getDiscountInfo(name, price, type);
+                    this.cart.push({ name: name, price: price, spec: spec, type: type, calcPrice: info.price, discountText: info.text, originalPrice: info.originalPrice });
+                    this.updateCartHeight(); 
+                } else { alert('追加できるのは6個までです。'); }
+            },
+            removeFromCart(index) { if (this.cart[index] !== undefined) { this.cart.splice(index, 1); this.updateCartHeight(); } },
+            recalculateCart() {
+                this.cart = this.cart.map(item => {
+                    const info = this.getDiscountInfo(item.name, item.price, item.type);
+                    item.calcPrice = info.price; item.discountText = info.text; item.originalPrice = info.originalPrice; return item;
+                });
+                this.updateCartHeight();
+            },
+            readExcel(e, prop) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const wb = XLSX.read(new Uint8Array(ev.target.result), {type: 'array'});
+                    if (prop === 'carData') { this[prop] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); } 
+                    else {
+                        const formatted = [];
+                        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 }).slice(1); 
+                        rows.forEach(row => {
+                            if (row && row.length > 0) {
+                                formatted.push({
+                                    name: row[0] ? String(row[0]).trim() : '',
+                                    spec: row[1] ? String(row[1]).trim() : '',
+                                    size: row[2] ? String(row[2]).trim() : '',
+                                    price: row[3] ? String(row[3]).replace(/[^0-9]/g, '') : '0'
+                                });
+                            }
+                        });
+                        this[prop] = formatted;
+                    }
+                    localStorage.setItem(prop, JSON.stringify(this[prop]));
+                    if (this.carData.length > 0 && this.menuData.length > 0 && this.optionData.length > 0) { this.showFileWindow = false; }
+                    this.adjustImagesHeight();
+                };
+                reader.readAsArrayBuffer(e.target.files[0]);
+            },
+            handleCarFile(e) { this.readExcel(e, 'carData'); },
+            handleMenuFile(e) { this.readExcel(e, 'menuData'); },
+            handleOptionFile(e) { this.readExcel(e, 'optionData'); },
+            resetData(prop, inputId) {
+                if (confirm('このデータを初期化してよろしいですか？')) {
+                    this[prop] = []; localStorage.removeItem(prop);
+                    const fileInput = document.getElementById(inputId); if (fileInput) fileInput.value = '';
+                    if (prop === 'carData') { this.maker = ''; this.model = ''; this.cart = []; }
+                    if (!(this.carData.length > 0 && this.menuData.length > 0 && this.optionData.length > 0)) { this.showFileWindow = true; }
+                    this.recalculateCart(); this.updateCartHeight();
+                }
+            },
+            adjustImagesHeight() {
+                if (this.imageFullscreenMode || !this.isAppUnlocked) return;
+                setTimeout(() => {
+                    if (window.matchMedia("(orientation: landscape)").matches) return;
+                    const images = document.querySelectorAll('.page-image');
+                    if (images.length > 1) {
+                        const targetHeight = images[1].clientHeight;
+                        if (targetHeight && targetHeight > 0) {
+                            images.forEach((img, idx) => {
+                                if (idx === 0) {
+                                    img.style.height = 'auto';
+                                    const wrapper = img.closest('.zoom-wrapper'); if (wrapper) { wrapper.style.height = 'auto'; wrapper.style.marginTop = '0'; }
+                                    return;
+                                }
+                                img.style.height = targetHeight + 'px';
+                                const wrapper = img.closest('.zoom-wrapper'); if (wrapper) wrapper.style.height = targetHeight + 'px';
+                            });
+                        }
+                    }
+                }, 200);
+            },
+            triggerPriceSettingGuidance() { this.showGuidance = true; setTimeout(() => { this.showGuidance = false; }, 4000); },
+            openPasswordScreen() { this.inputPassword = ''; this.showPasswordDialog = true; },
+            verifyPassword() {
+                if (this.inputPassword === '8541') { this.showPasswordDialog = false; this.syncItemSettings(); this.showAdminPage = true; } 
+                else { alert('パスワードが違います。'); this.inputPassword = ''; }
+            },
+            saveAndReturn() {
+                localStorage.setItem('discountType', this.discountType);
+                localStorage.setItem('discountValue', this.discountValue);
+                localStorage.setItem('discountTarget', this.discountTarget);
+                localStorage.setItem('itemSettings', JSON.stringify(this.itemSettings));
+                this.recalculateCart(); this.showAdminPage = false;
+                if(this.swiperInstance) this.swiperInstance.update();
+                this.adjustImagesHeight();
+            },
+            
+            // 👑 パスワード通過後、または認証済みだった場合のメイン初期化処理
+            initializeMainFeatures() {
+                this.updateCartHeight();
+                this.triggerPriceSettingGuidance();
+                this.showFullscreenConfirm = true;
+            },
+
+            init() { 
+                const storedCarData = localStorage.getItem('carData'); if (storedCarData) this.carData = JSON.parse(storedCarData);
+                const storedMenuData = localStorage.getItem('menuData'); if (storedMenuData) this.menuData = JSON.parse(storedMenuData);
+                const storedOptionData = localStorage.getItem('optionData'); if (storedOptionData) this.optionData = JSON.parse(storedOptionData);
+                const storedDiscountConfig = localStorage.getItem('itemSettings'); if (storedDiscountConfig) this.itemSettings = JSON.parse(storedDiscountConfig);
+                const storedDiscountType = localStorage.getItem('discountType'); if (storedDiscountType) this.discountType = storedDiscountType;
+                const storedDiscountValue = localStorage.getItem('discountValue'); if (storedDiscountValue) this.discountValue = Number(storedDiscountValue);
+                const storedDiscountTarget = localStorage.getItem('discountTarget'); if (storedDiscountTarget) this.discountTarget = storedDiscountTarget;
+
+                if (this.carData.length > 0 && this.menuData.length > 0 && this.optionData.length > 0) { this.showFileWindow = false; }
+
+                document.addEventListener('fullscreenchange', () => { this.isFullscreen = !!document.fullscreenElement; this.updateCartHeight(); });
+                window.addEventListener('resize', () => { this.updateCartHeight(); });
+                
+                this.$nextTick(() => { 
+                    this.swiperInstance = new Swiper('.swiper', { 
+                        observer: true, observeParents: true, touchStartPreventDefault: false,
+                        zoom: { maxRatio: 1, minRatio: 1, toggle: false },
+                        effect: 'slide', speed: 300
+                    }); 
+                    
+                    // 👑 過去にロック解除されたフラグがあるかチェック
+                    const alreadyUnlocked = localStorage.getItem('menu_app_global_unlocked');
+                    if (alreadyUnlocked === 'true') {
+                        this.isAppUnlocked = true;
+                        this.initializeMainFeatures();
+                    } else {
+                        this.isAppUnlocked = false; // パスワード画面を表示
+                    }
+                }); 
+            }
+        }));
+    });
+</script>
+</body>
+</html>
